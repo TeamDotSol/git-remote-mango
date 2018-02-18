@@ -42,25 +42,12 @@ function ipfsGet (key, cb) {
 module.exports = Repo
 
 function Repo (address, user) {
-<<<<<<< HEAD
     this.address = address
-    this.privateKey = process.env.PRIVATE_KEY
-    this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
-
-    this.repoContract = this.web3.eth.contract(repoABI).at(address)
-=======
-  // console.error('LOADING REPO', address)
-  this.address = address
     this.fromAddress = process.env.ADDRESS
     this.privateKey = process.env.PRIVATE_KEY
     this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
 
-    try {
-        this.repoContract = this.web3.eth.contract(repoABI).at(address)
-    } catch (e){
-      console.error('asdfasdf', e)
-    }
->>>>>>> cb54f55ce41d960a56e4fb91ada9b46731485642
+    this.repoContract = this.web3.eth.contract(repoABI).at(address)
 }
 
 Repo.prototype._loadObjectMap = function (cb) {
@@ -90,12 +77,7 @@ Repo.prototype._ensureObjectMap = function (cb) {
 }
 
 Repo.prototype.snapshotAdd = function (hash, cb) {
-<<<<<<< HEAD
   this.repoContract.addSnapshot(hash, cb)
-=======
-  // console.error('SNAPSHOT ADD', hash)
-  // this.repoContract.addSnapshot(hash, cb)
->>>>>>> cb54f55ce41d960a56e4fb91ada9b46731485642
 }
 
 Repo.prototype.snapshotGetAll = function (cb) {
