@@ -2,13 +2,13 @@ var async = require('async')
 var pull = require('pull-stream')
 var multicb = require('multicb')
 var crypto = require('crypto')
-var IPFS = require('ipfs')
-var ipfs = new IPFS()
+var ipfsAPI = require('ipfs-api')
+var ipfs = ipfsAPI('localhost', '5001', { protocol: 'http' })
 var Web3 = require('web3')
 var rlp = require('rlp')
 var ethUtil = require('ethereumjs-util')
 var snapshot = require('./snapshot.js')
-var repoABI = require('./MangoRepoABI.json')
+var repoABI = require('./OrganizationABI.json')
 var _ = require('lodash');
 var SolidityFunction = require('web3/lib/web3/function');
 
@@ -22,6 +22,7 @@ function gitHash (obj, data) {
 function ipfsPut (buf, enc, cb) {
   ipfs.object.put(buf, { enc }, function (err, node) {
     if (err) {
+      console.error(`IPFS PUT Error: ${err}`)
       return cb(err)
     }
 
@@ -32,6 +33,7 @@ function ipfsPut (buf, enc, cb) {
 function ipfsGet (key, cb) {
   ipfs.object.get(key, { enc: 'base58' }, function (err, node) {
     if (err) {
+      console.error(`IPFS GET Error: ${err}`)
       return cb(err)
     }
 
@@ -41,13 +43,14 @@ function ipfsGet (key, cb) {
 
 module.exports = Repo
 
-function Repo (address, user) {
-    this.address = address
+function Repo (orgName, repoName, user) {
     this.fromAddress = process.env.ADDRESS
     this.privateKey = process.env.PRIVATE_KEY
+    this.orgName = orgName
+    this.repoName = repoName
     this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
 
-    this.repoContract = this.web3.eth.contract(repoABI).at(address)
+    this.repoContract = this.web3.eth.contract(repoABI).at(orgName)
 }
 
 Repo.prototype._loadObjectMap = function (cb) {
@@ -92,33 +95,33 @@ Repo.prototype.snapshotGetAll = function (cb) {
 }
 
 Repo.prototype.contractGetRef = function (ref, cb) {
-  this.repoContract.getRef(ref, cb)
+  // this.repoContract.getRef(ref, cb)
 }
 
 Repo.prototype.contractSetRef = function (ref, hash, cb) {
-  this.repoContract.setRef(ref, hash, cb)
+  // this.repoContract.setRef(ref, hash, cb)
 }
 
 Repo.prototype.contractAllRefs = function (cb) {
-  var refcount = this.repoContract.refCount().toNumber()
+  // var refcount = this.repoContract.refCount().toNumber()
 
   var refs = {}
-  for (var i = 0; i < refcount; i++) {
-    var key = this.repoContract.refName(i)
-    refs[key] = this.repoContract.getRef(key)
-  }
+  // for (var i = 0; i < refcount; i++) {
+  //   var key = this.repoContract.refName(i)
+  //   refs[key] = this.repoContract.getRef(key)
+  // }
 
   cb(null, refs)
 }
 
 Repo.prototype.refs = function (prefix) {
-  var refcount = this.repoContract.refCount().toNumber()
+  // var refcount = this.repoContract.refCount().toNumber()
 
   var refs = {}
-  for (var i = 0; i < refcount; i++) {
-    var key = this.repoContract.refName(i)
-    refs[key] = this.repoContract.getRef(key)
-  }
+  // for (var i = 0; i < refcount; i++) {
+  //   var key = this.repoContract.refName(i)
+  //   refs[key] = this.repoContract.getRef(key)
+  // }
 
   var refNames = Object.keys(refs)
   i = 0
@@ -180,19 +183,42 @@ Repo.prototype.getObject = function (hash, cb) {
 }
 
 Repo.prototype.update = async function (readRefUpdates, readObjects, cb) {
-  var done = multicb({pluck: 1})
-  var self = this
+    var done = multicb({pluck: 1})
+    var self = this
+
+    if (readRefUpdates) {
+        var doneReadingRefs = done()
+        var ref
+        var hash
+
+        readRefUpdates(null, async function next (end, update) {
+          if (end) {
+            return doneReadingRefs(end === true ? null : end)
+          }
+
+          ref = update.name
+          hash = update.new
+        })
+    }
 
     if (readObjects) {
     var doneReadingObjects = function () {
       ipfsPut(snapshot.create(self._objectMap), null, function (err, ipfsHash) {
         if (err) {
-
           return done(err)
         }
 
-        self.snapshotAdd(ipfsHash, function () {
-          done()
+        console.error(ipfsHash, hash, self.repoName, ref)
+        hash = self.web3.fromAscii(hash)
+        repoName = self.web3.fromAscii(self.repoName)
+        ref = self.web3.fromAscii(ref)
+        sendFunction('commit', [hash, ipfsHash, repoName, ref], self.privateKey, self.fromAddress, self.orgName, self.web3, function (err, results) {
+            if (err) {
+                console.error(`Commit Error: ${err}`)
+            } else {
+                console.error(`Commit Success: ${results}`)
+                done()
+            }
         })
       })
     }
@@ -220,41 +246,13 @@ Repo.prototype.update = async function (readRefUpdates, readObjects, cb) {
               return doneReadingObjects(err)
             }
 
+            console.error('piece', ipfsHash)
+
             self._objectMap[hash] = ipfsHash
             readObjects(null, next)
           })
         })
       )
-    })
-  }
-
-  if (readRefUpdates) {
-    var doneReadingRefs = done()
-
-    readRefUpdates(null, async function next (end, update) {
-      if (end) {
-        return doneReadingRefs(end === true ? null : end)
-      }
-
-      var ref = self.repoContract.getRef(update.name, {gas: 20000000})
-      if (typeof(ref) === 'string' && ref.length === 0) {
-        ref = null
-      }
-
-      if (update.old !== ref) {
-        return doneReadingRefs(new Error(
-          'Ref update old value is incorrect. ' +
-          'ref: ' + update.name + ', ' +
-          'old in update: ' + update.old + ', ' +
-          'old in repo: ' + ref
-        ))
-      }
-
-      if (update.new) {
-          self.repoContract.setRef(update.name, update.new, { gas: 20000000 })
-      } else {
-          self.repoContract.deleteRef(update.name, { gas: 20000000 })
-      }
     })
   }
 
@@ -266,13 +264,13 @@ Repo.prototype.update = async function (readRefUpdates, readObjects, cb) {
   })
 }
 
-function sendFunction (functionName, payload, callback) {
+function sendFunction (functionName, payload, privateKey, address, contractAddress, web3, callback) {
     var solidityFunction = new SolidityFunction('', _.find(repoABI, { name: functionName }), '');
     const txhash = solidityFunction.toPayload(payload).data
 
     const key = new Buffer(privateKey, 'hex')
     const balance = web3.eth.getBalance(address)
-    console.log('balance', balance.toString())
+    console.error('balance', balance.toString())
 
     const transaction = {
         data: txhash,

@@ -22,8 +22,11 @@ if (repo.protocol !== 'mango:') {
   die('Invalid protocol')
 }
 
+var orgName = repo.hostname
+var repoName = repo.path.slice(1)
+
 pull(
   toPull(process.stdin),
-  gitRemoteHelper(new Mango(repo.hostname, repo.auth)),
+  gitRemoteHelper(new Mango(orgName, repoName)),
   toPull(process.stdout)
 )
