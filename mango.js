@@ -202,6 +202,7 @@ Repo.prototype.getObject = function (hash, cb) {
 
 Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
   // console.error('UPDATE')
+    console.error('stufff')
 
   var done = multicb({pluck: 1})
   var self = this
@@ -265,7 +266,7 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
       // console.error('UPDATE REF', update.name, update.new, update.old)
 
       // FIXME: make this async
-      var ref = self.repoContract.getRef(update.name)
+      var ref = self.repoContract.getRef(update.name, {gas: 20000000})
       if (typeof(ref) === 'string' && ref.length === 0) {
         ref = null
       }
@@ -281,10 +282,10 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
 
       if (update.new) {
         // FIXME: make this async
-        self.repoContract.setRef(update.name, update.new)
+        self.repoContract.setRef(update.name, update.new, {gas: 20000000})
       } else {
         // FIXME: make this async
-        self.repoContract.deleteRef(update.name)
+        self.repoContract.deleteRef(update.name,  {gas: 20000000})
       }
 
       readRefUpdates(null, next)
