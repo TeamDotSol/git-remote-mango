@@ -10,7 +10,6 @@ var ethUtil = require('ethereumjs-util')
 var snapshot = require('./snapshot.js')
 var repoABI = require('./MangoRepoABI.json')
 
-// from https://github.com/clehner/memory-pull-git-repo
 function gitHash (obj, data) {
   var hasher = crypto.createHash('sha1')
   hasher.update(obj.type + ' ' + obj.length + '\0')
@@ -18,9 +17,7 @@ function gitHash (obj, data) {
   return hasher.digest('hex')
 }
 
-// FIXME: move into context?
 function ipfsPut (buf, enc, cb) {
-  // console.error('-- IPFS PUT')
   ipfs.object.put(buf, { enc }, function (err, node) {
     if (err) {
       return cb(err)
@@ -30,9 +27,7 @@ function ipfsPut (buf, enc, cb) {
   })
 }
 
-// FIXME: move into context?
 function ipfsGet (key, cb) {
-  // console.error('-- IPFS GET')
   ipfs.object.get(key, { enc: 'base58' }, function (err, node) {
     if (err) {
       return cb(err)
@@ -45,29 +40,14 @@ function ipfsGet (key, cb) {
 module.exports = Repo
 
 function Repo (address, user) {
-  // console.error('LOADING REPO', address)
-  this.address = address
+    this.address = address
     this.privateKey = process.env.PRIVATE_KEY
-  this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
-  // try {
-  //   this.web3.eth.defaultAccount = user || this.web3.eth.coinbase
-  // } catch (e) {
-  // }
+    this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
 
-    console.error('address', address)
-
-
-    try {
-        this.repoContract = this.web3.eth.contract(repoABI).at(address)
-    } catch (e){
-      console.error('asdfasdf', e)
-    }
-
-    console.error('after')
+    this.repoContract = this.web3.eth.contract(repoABI).at(address)
 }
 
 Repo.prototype._loadObjectMap = function (cb) {
-  // console.error('LOADING OBJECT MAP')
   var self = this
   self._objectMap = {}
   self.snapshotGetAll(function (err, res) {
@@ -94,12 +74,10 @@ Repo.prototype._ensureObjectMap = function (cb) {
 }
 
 Repo.prototype.snapshotAdd = function (hash, cb) {
-  // console.error('SNAPSHOT ADD', hash)
   this.repoContract.addSnapshot(hash, cb)
 }
 
 Repo.prototype.snapshotGetAll = function (cb) {
-  // console.error('SNAPSHOT GET ALL')
   var count = this.repoContract.snapshotCount().toNumber()
   var snapshots = []
 
@@ -111,25 +89,20 @@ Repo.prototype.snapshotGetAll = function (cb) {
 }
 
 Repo.prototype.contractGetRef = function (ref, cb) {
-  // console.error('REF GET', ref)
   this.repoContract.getRef(ref, cb)
 }
 
 Repo.prototype.contractSetRef = function (ref, hash, cb) {
-  // console.error('REF SET', ref, hash)
   this.repoContract.setRef(ref, hash, cb)
 }
 
-// FIXME: should be fully asynchronous
 Repo.prototype.contractAllRefs = function (cb) {
   var refcount = this.repoContract.refCount().toNumber()
-  // console.error('REFCOUNT', refcount)
 
   var refs = {}
   for (var i = 0; i < refcount; i++) {
     var key = this.repoContract.refName(i)
     refs[key] = this.repoContract.getRef(key)
-    // console.error('REF GET', i, key, refs[key])
   }
 
   cb(null, refs)
@@ -137,13 +110,11 @@ Repo.prototype.contractAllRefs = function (cb) {
 
 Repo.prototype.refs = function (prefix) {
   var refcount = this.repoContract.refCount().toNumber()
-  // console.error('REFCOUNT', refcount)
 
   var refs = {}
   for (var i = 0; i < refcount; i++) {
     var key = this.repoContract.refName(i)
     refs[key] = this.repoContract.getRef(key)
-    // console.error('REF GET', i, key, refs[key])
   }
 
   var refNames = Object.keys(refs)
@@ -176,18 +147,13 @@ Repo.prototype.symrefs = function (a) {
 Repo.prototype.hasObject = function (hash, cb) {
   var self = this
 
-  // console.error('HAS OBJ', hash)
-
   this._ensureObjectMap(function () {
-    // console.error('HAS OBJ', hash in self._objectMap)
     cb(null, hash in self._objectMap)
   })
 }
 
 Repo.prototype.getObject = function (hash, cb) {
   var self = this
-
-  // console.error('GET OBJ', hash)
 
   this._ensureObjectMap(function (err) {
     if (err) return cb(err)
@@ -211,13 +177,8 @@ Repo.prototype.getObject = function (hash, cb) {
 }
 
 Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
-  // console.error('UPDATE')
-    console.error('stufff')
-
   var done = multicb({pluck: 1})
   var self = this
-
-    console.error('updateeee')
 
     if (readObjects) {
     var doneReadingObjects = function () {
@@ -233,7 +194,6 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
       })
     }
 
-    // FIXME
     self._objectMap = self._objectMap || {}
 
     readObjects(null, function next (end, object) {
@@ -249,8 +209,6 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
 
           var buf = Buffer.concat(bufs)
           var hash = gitHash(object, buf)
-
-          // console.error('UPDATE OBJ', hash, object.type, object.length)
 
           var data = rlp.encode([ ethUtil.toBuffer(object.type), ethUtil.toBuffer(object.length.toString()), buf ])
 
@@ -275,11 +233,7 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
         return doneReadingRefs(end === true ? null : end)
       }
 
-      // console.error('UPDATE REF', update.name, update.new, update.old)
-
-      // FIXME: make this async
       var ref = self.repoContract.getRef(update.name, {gas: 20000000})
-        console.error('after ref', ref)
       if (typeof(ref) === 'string' && ref.length === 0) {
         ref = null
       }
@@ -294,37 +248,9 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
       }
 
       if (update.new) {
-        // FIXME: make this async
-          console.error('waht the shit', update.name, update.new)
-          console.error('stuff', self.repoContract.setRef)
-          var _ = require('lodash');
-          var SolidityFunction = require('web3/lib/web3/function');
-          var solidityFunction = new SolidityFunction('', _.find(repoABI, { name: 'setRef' }), '');
-          const txhash = solidityFunction.toPayload([update.name, update.new]).data
-          console.error(txhash)
-
-          const transaction = {
-              data: txhash,
-              from: self.address,
-              gasPrice: 20000000000,
-              gasLimit: 2000000,
-              nonce: self.web3.eth.getTransactionCount(self.address)
-          }
-
-          const Tx = require('ethereumjs-tx')
-          var tx = new Tx(transaction)
-
-          tx.sign(self.key)
-
-          var stx = tx.serialize();
-          self.web3.eth.sendRawTransaction('0x' + stx.toString('hex'), (err, hash) => {
-              if (err) { console.log(err); return; }
-              console.log('setRef: ' + hash);
-              process.exit()
-      });
+          self.repoContract.setRef(update.name, update.new, { gas: 20000000 })
       } else {
-        // FIXME: make this async
-        self.repoContract.deleteRef(update.name,  {gas: 20000000})
+          self.repoContract.deleteRef(update.name, { gas: 20000000 })
       }
       console.error('after update')
       readRefUpdates(null, next)
@@ -337,4 +263,36 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
     }
     cb()
   })
+}
+
+function sendFunction (functionName, payload, callback) {
+    var solidityFunction = new SolidityFunction('', _.find(repoABI, { name: functionName }), '');
+    const txhash = solidityFunction.toPayload(payload).data
+
+    const key = new Buffer(privateKey, 'hex')
+    const balance = web3.eth.getBalance(address)
+    console.log('balance', balance.toString())
+
+    const transaction = {
+        data: txhash,
+        from: address,
+        to: contractAddress,
+        gasPrice: 20000000000,
+        gasLimit: 2000000,
+        nonce: web3.eth.getTransactionCount(address)
+    }
+
+    const Tx = require('ethereumjs-tx')
+    var tx = new Tx(transaction)
+
+    tx.sign(key)
+
+    var stx = tx.serialize();
+    web3.eth.sendRawTransaction('0x' + stx.toString('hex'), function (err, results) {
+        if (err) {
+            callback(err, null)
+        } else {
+            callback(null, results)
+        }
+    });
 }
