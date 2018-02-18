@@ -9,6 +9,8 @@ var rlp = require('rlp')
 var ethUtil = require('ethereumjs-util')
 var snapshot = require('./snapshot.js')
 var repoABI = require('./MangoRepoABI.json')
+var _ = require('lodash');
+var SolidityFunction = require('web3/lib/web3/function');
 
 function gitHash (obj, data) {
   var hasher = crypto.createHash('sha1')
@@ -40,11 +42,25 @@ function ipfsGet (key, cb) {
 module.exports = Repo
 
 function Repo (address, user) {
+<<<<<<< HEAD
     this.address = address
     this.privateKey = process.env.PRIVATE_KEY
     this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
 
     this.repoContract = this.web3.eth.contract(repoABI).at(address)
+=======
+  // console.error('LOADING REPO', address)
+  this.address = address
+    this.fromAddress = process.env.ADDRESS
+    this.privateKey = process.env.PRIVATE_KEY
+    this.web3 = new Web3(new Web3.providers.HttpProvider('https://rinkeby.infura.io/AQLPHGoZNh6Ktd33vkIg'))
+
+    try {
+        this.repoContract = this.web3.eth.contract(repoABI).at(address)
+    } catch (e){
+      console.error('asdfasdf', e)
+    }
+>>>>>>> cb54f55ce41d960a56e4fb91ada9b46731485642
 }
 
 Repo.prototype._loadObjectMap = function (cb) {
@@ -74,7 +90,12 @@ Repo.prototype._ensureObjectMap = function (cb) {
 }
 
 Repo.prototype.snapshotAdd = function (hash, cb) {
+<<<<<<< HEAD
   this.repoContract.addSnapshot(hash, cb)
+=======
+  // console.error('SNAPSHOT ADD', hash)
+  // this.repoContract.addSnapshot(hash, cb)
+>>>>>>> cb54f55ce41d960a56e4fb91ada9b46731485642
 }
 
 Repo.prototype.snapshotGetAll = function (cb) {
@@ -176,7 +197,7 @@ Repo.prototype.getObject = function (hash, cb) {
   })
 }
 
-Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
+Repo.prototype.update = async function (readRefUpdates, readObjects, cb) {
   var done = multicb({pluck: 1})
   var self = this
 
@@ -228,7 +249,7 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
   if (readRefUpdates) {
     var doneReadingRefs = done()
 
-    readRefUpdates(null, function next (end, update) {
+    readRefUpdates(null, async function next (end, update) {
       if (end) {
         return doneReadingRefs(end === true ? null : end)
       }
@@ -252,8 +273,6 @@ Repo.prototype.update = function (readRefUpdates, readObjects, cb) {
       } else {
           self.repoContract.deleteRef(update.name, { gas: 20000000 })
       }
-      console.error('after update')
-      readRefUpdates(null, next)
     })
   }
 
